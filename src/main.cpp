@@ -1,5 +1,3 @@
-#include "Eigen-3.3/Eigen/Core"
-#include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
 #include <chrono>
@@ -403,8 +401,8 @@ int main() {
           ptsy.push_back(next_wp0[1]);
           ptsy.push_back(next_wp1[1]);
           ptsy.push_back(next_wp2[1]);
-
-          // converting back to world coordinates
+          
+          // convert to local cooridnate
           for (int i = 0; i < ptsx.size(); i++) {
             // shift car reference angle to 0 degrees
             double shift_x = ptsx[i] - ref_x;
