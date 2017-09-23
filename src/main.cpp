@@ -20,7 +20,7 @@ using json = nlohmann::json;
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
-
+double distanceD(double D, int lane) { return abs(D - (2 + 4 * lane)); }
 double distance(double x1, double y1, double x2, double y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
@@ -155,19 +155,8 @@ int main() {
 
   // current lane index
   int lane = 1;
-  // most left drivable lane, can be increased if that lane is under
-  // construction or damanged etc.
-  int min_drivable_lane = 0;
-  // most right drivable lane, "" "" "" ""
-  int max_drivable_lane = 2;
   // Reference Velocity
   double ref_vel = 0; // 49.4;
-
-  /* for this simulator we are are sure that we'll drive in 3 lane highway
-   that's why we are configuring ego vehicle here
-   target speed, lanes available, goal s, goal lane,
-   max acceleration*/
-  // ego.configure(ref_vel,max_drivable_lane,1000,0.5,0.4);
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   vector<double> map_waypoints_x;
@@ -204,10 +193,9 @@ int main() {
   }
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
-               &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane,
-               &max_drivable_lane,
-               &min_drivable_lane](uWS::WebSocket<uWS::SERVER> ws, char *data,
-                                   size_t length, uWS::OpCode opCode) {
+               &map_waypoints_dx, &map_waypoints_dy, &ref_vel,
+               &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -245,131 +233,125 @@ int main() {
           auto sensor_fusion = j[1]["sensor_fusion"];
 
           json msgJson;
-          // Previous Path size. x & y have same size
+          // Previous path size. x & y have same size
           int prev_size = previous_path_x.size();
+          // if there is previous path set its end S value as car S.
           if (prev_size > 0) {
             car_s = end_path_s;
           }
           // Front car distance test
           bool too_close_infront = false;
-          // must be in same lane if this isn't true
+          // Safe Lanes - true: drivable, false: undrivable
           vector<bool> safe_lane = {true, true, true};
+          // for getting the front car reference velocity
           double front_car_ref_vel = ref_vel;
+          // while changing lane, vehicle should not consider changing lane
+          // immediately unless previous lane change complete
           bool lane_changing = false;
-          if (lane_changing == false) {
-            // find ref_v to use
-            for (int i = 0; i < sensor_fusion.size(); i++) {
-              // get car's D to check which lane the car is in
-              float d = sensor_fusion[i][6];
-              // cout<<d<<endl;
-              // do this if lane is center
 
-              double vx = sensor_fusion[i][3]; // dx
-              double vy = sensor_fusion[i][4]; // dy
-              double check_speed =
-                  sqrt(vx * vx + vy * vy); // velocity magnitude of dy,dx
-              double check_car_s = sensor_fusion[i][5];
+          // find ref_v to use
+          for (int i = 0; i < sensor_fusion.size(); i++) {
+            // get car's D to check which lane the car is in
+            float d = sensor_fusion[i][6];
 
-              check_car_s +=
-                  ((double)prev_size * .02 * check_speed); // if using previous
-                                                           // point can project
-                                                           // s value out
-                                                           //  if (lane == 1) {
-              if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
+            double vx = sensor_fusion[i][3]; // dx
+            double vy = sensor_fusion[i][4]; // dy
+            double check_speed =
+                sqrt(vx * vx + vy * vy); // velocity magnitude of dy,dx
+            double check_car_s = sensor_fusion[i][5];
 
-                // check s value of any car greater than our car its mean it is
-                // in front of us
-
-                if ((check_car_s > car_s) && (check_car_s - car_s) < 40) {
-                  // ref_vel=29.6; //mp/h
-                  too_close_infront = true;
-                  front_car_ref_vel =
-                      check_speed; // we will follow that car with its speed
-                  safe_lane[lane] = false;
-                }
-              } 
-                  // left lane of current lane
-                  if (d < (2 + 4 * (lane - 1) + 2) &&
-                      d > (2 + 4 * (lane - 1) - 2)) {
-                // if anyone is in front of left lane
-                if (((check_car_s > car_s) && (check_car_s - car_s) < 30) ||
-                    // or anyone at back of the left lane but near
-                    ((check_car_s <= car_s) && abs(check_car_s - car_s) < 10)) {
-                  // car is near infront of left
-                  safe_lane[lane - 1] = false;
-                  //  cout << "left not safe" << endl;
-                }
-              } else
-                  // right lane of current lane
-                  if (d < (2 + 4 * (lane + 1) + 2) &&
-                      d > (2 + 4 * (lane + 1) - 2)) {
-                if (((check_car_s > car_s) && (check_car_s - car_s) < 30) ||
-                    // or anyone at back of the left lane but near
-                    ((check_car_s <= car_s) && abs(check_car_s - car_s) < 10)) {
-                  // car is near infront of right
-                  //  cout << "right not safe" << endl;
-                  safe_lane[lane + 1] = false;
-                }
+            check_car_s +=
+                ((double)prev_size * .02 * check_speed); // if using previous
+                                                         // point can project
+                                                         // s value out
+            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
+              // check s value of any car greater than our car its mean it is
+              // in front of us
+              if ((check_car_s > car_s) && (check_car_s - car_s) < 35) {
+                // ref_vel=29.6; //mp/h
+                too_close_infront = true;
+                // we will follow that car with its speed
+                front_car_ref_vel = check_speed;
+                safe_lane[lane] = false;
               }
-              // }
+            }
+            // left lane of current lane
+            if (d < (2 + 4 * (lane - 1) + 2) && d > (2 + 4 * (lane - 1) - 2)) {
+              // if anyone is in front of left lane
+              if (((check_car_s > car_s) && (check_car_s - car_s) < 30) ||
+                  // or anyone at back of the left lane but near
+                  ((check_car_s <= car_s) && abs(check_car_s - car_s) < 10)) {
+                // car is near infront of left
+                safe_lane[lane - 1] = false;
+                //  cout << "left not safe" << endl;
+              }
+            } 
+            // right lane of current lane
+            else if (d < (2 + 4 * (lane + 1) + 2) && d > (2 + 4 * (lane + 1) - 2)) {
+              if (((check_car_s > car_s) && (check_car_s - car_s) < 30) ||
+                  // or anyone at back of the left lane but near
+                  ((check_car_s <= car_s) && abs(check_car_s - car_s) < 10)) {
+                // car is near infront of right
+                safe_lane[lane + 1] = false;
+              }
             }
           }
-          int current_lane = lane;
 
-          bool lane_changed = false;
           cout << safe_lane[0] << "\t" << safe_lane[1] << "\t" << safe_lane[2]
-          << endl;
-          // Reduce Speed if there is no options
+               << endl;
+          if (lane_changing == false) {
+            if (too_close_infront) {
+              // if this is center lane
+              if (lane == 1) {
+                // 2 options for left and right
+                if (safe_lane[0]) {
+                  lane -= 1;
+                  lane_changing = true;
+                } else if (safe_lane[2]) {
+                  lane += 1;
+                  lane_changing = true;
+                }
+              } else if (lane == 0) {
+                // 1 option for center lane only
+                if (safe_lane[1]) {
+                  lane = 1;
+                  lane_changing = true;
+                }
+              } else if (lane == 2) {
+                // 1 option for center lane only
+                if (safe_lane[1]) {
+                  lane = 1;
+                  lane_changing = true;
+                }
+              }
+            } else if (ref_vel < 49.3) {
+              ref_vel += .274;
+            }
+          }
           if (too_close_infront) {
-           
-            // cout << "Reducing Speed" << endl;
-            if (lane == 1) {
-              // 2 options for left and right
-              if (safe_lane[0]) {
-                lane -= 1;
-                lane_changed = true;
-              } else if (safe_lane[2]) {
-                lane += 1;
-                lane_changed = true;
-              }
-            } else if (lane == 0) {
-              if (safe_lane[1]) {
-                lane = 1;
-                lane_changed = true;
-              }
-            } else if (lane == 2) {
-              if (safe_lane[1]) {
-                lane = 1;
-                lane_changed = true;
-              }
-            }
-            if (lane_changed) {
-              lane_changed = false;
-            }
-            // try to match with the speed of front car
-            // double diff_ref_vel = abs(ref_vel - front_car_ref_vel);
-            // if (diff_ref_vel > 0) { //
-            //   ref_vel -= .224;        // -5 m/s
-            // }
             if (ref_vel > 0) {
+              // interpolate velocity
+              // if (ref_vel < front_car_ref_vel)
+              // ref_vel += (0.1 * (front_car_ref_vel - ref_vel));
               ref_vel -= .224;
             } else {
+              // consider reverse is not available
               ref_vel = 0;
             }
-
-            //	ego(lane,car_s,car_speed,-0.224);
-          } else if (ref_vel < 49.5) {
-            ref_vel += .324; // +5 m/s
-            //	ego(lane,car_s,car_speed,0.224);
           }
-
-          // update ego state
-          // ego.increment(1);
-
+          if (lane_changing) {
+            // Do anything if lane is changed!
+            // Check if lane is near the center
+            double dist = distanceD(car_d, lane);
+            cout << dist << endl;
+            if (dist < 1) {
+              lane_changing = false;
+              cout << "lane changed!" << endl;
+            }
+          }
           //
           // Update Simulator Points
           //
-
           vector<double> ptsx;
           vector<double> ptsy;
 
@@ -398,13 +380,12 @@ int main() {
 
             // Use two points that make the path tangent to the previous path's
             // end point
-
             ptsx.push_back(ref_x_prev);
             ptsx.push_back(ref_x);
             ptsy.push_back(ref_y_prev);
             ptsy.push_back(ref_y);
           }
-
+          // Three anchor point for the splines on which we will generate path points.
           vector<double> next_wp0 =
               getXY(car_s + 30, (2 + 4 * lane), map_waypoints_s,
                     map_waypoints_x, map_waypoints_y);
@@ -445,8 +426,7 @@ int main() {
             next_y_vals.push_back(previous_path_y[i]);
           }
           // Calculate how to break up spline points so that we travel at our
-          // desired reference
-          // velocity
+          // desired reference velocity
           double target_x = 30.0;
           double target_y = s(target_x);
           double target_dist =
@@ -475,14 +455,14 @@ int main() {
             next_y_vals.push_back(y_point);
           }
 
-          // TODO: define a path made up of (x,y) points that the car will visit
+          // Define a path made up of (x,y) points that the car will visit
           // sequentially every .02 seconds
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
-          // this_thread::sleep_for(chrono::milliseconds(1000));
+          //this_thread::sleep_for(chrono::milliseconds(200));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
