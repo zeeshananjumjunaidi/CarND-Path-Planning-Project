@@ -1,4 +1,5 @@
 # Path Planning Project
+## Model Documentation
 ### 3 Lane Highway driving | 50MPH speed limit
 Self-Driving Car Engineer Nanodegree Program
 ### Driving Test
@@ -8,12 +9,12 @@ Self-Driving Car Engineer Nanodegree Program
 <hr/> 
 </div>
 
-## Behavior Planner
+### Behavior Planner
 Car follows the current lane with 93% of speed limit.
 If any vehicle in front of us in the same lane is moving slow and distance b/w us is < 35m. then we calculate possibilites of
 all the lanes of the road. We will check left & right lane (30m front of us and 10m back from us) if there is any car in these area, we will flag that area as unsafe otherwise it is safe. if all the lanes are unsafe its better to slowdown and keep the distance more than 35m or if any lane next to us is empty then switch to that lane. We will not switch two lanes with one maneuver to avoid jerk.
 
-## Path Generation
+### Path Generation
 Following are the steps used in this project for path generation, **[code](https://github.com/zeeshananjumjunaidi/CarND-Path-Planning-Project/blob/2c73755e6945aa00afc6d5616fd8e3352005b901/src/main.cpp#L355)**:
  * Simulator returns previous path points that aren't visited yet by the car.
  * I checked whether we have enough previous points to be used again in the new path or not. if not then I generate tangent point with the car orientation and add it to the points list.
