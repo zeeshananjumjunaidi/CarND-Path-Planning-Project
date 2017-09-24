@@ -12,22 +12,23 @@ Self-Driving Car Engineer Nanodegree Program
 ### Behavior Planner
 Car follows the current lane with 93% of speed limit.
 If any vehicle in front of us in the same lane is moving slow and distance b/w us is < 35m. then we calculate possibilites of
-all the lanes of the road. We will check left & right lane (30m front of us and 10m back from us) if there is any car in these area, we will flag that area as unsafe otherwise it is safe. if all the lanes are unsafe its better to slowdown and keep the distance more than 35m or if any lane next to us is empty then switch to that lane. We will not switch two lanes with one maneuver to avoid jerk.
+all the lanes of the road. We will check left & right lane (30m front of us and 10m back from us) if there is any car in these area, we will flag that area as unsafe otherwise it is safe. if all the lanes are unsafe its better to slowdown and keep the distance more than 35m or if any lane next to us is empty then switch to that lane. Double lane change with single maneuver is not allowed to avoid jerk.
 
 ### Path Generation
 Following are the steps used in this project for path generation, **[code](https://github.com/zeeshananjumjunaidi/CarND-Path-Planning-Project/blob/2c73755e6945aa00afc6d5616fd8e3352005b901/src/main.cpp#L355)**:
  * Simulator returns previous path points that aren't visited yet by the car.
- * I checked whether we have enough previous points to be used again in the new path or not. if not then I generate tangent point with the car orientation and add it to the points list.
- * or if we have enough previous points then I copy last two points of the previous path and add it to the new points array.
- * Then I generate three anchor points for the spline with 30m apart in frenet S value and for d, I used current lane center value.
- * then I push these points back to the points array and conver it to the local car coordinate.
- * I set the points to the spline.
+ * I checked whether we have enough previous points to be used again in the new path or not. if not then I generate tangent line using two point with the car orientation and add it to the points list.
+ * Or if we have enough previous points then I copy last two points of the previous path and add it to the new points array.
+ * Then I generate three anchor points for the spline with 30m apart in frenet **S** value and for **d**, I used current lane center value.
+ * Then I push these points back to the points array and convert it to the local car coordinate.
+ * I set these points to the spline.
  * Then I again create a new set of points, **next_x_vals** and **next_y_vals** and push back all the remaining previous path points.
- * After this, I generate remaining points (50 - previous points) as I want total 50.
+ * After this, I generate remaining points (50 - previous points) as I decide to have total 50 points.
  * As vehicle visit each point in .02sec in the simulator, so I used following formula to calculate the distance of these points:
   * N = target_distance / 0.02 * (reference_velocity / 2.24)
- * I got new y value for the new point from the spline.
- * At last I conver it back to world coordinate and send it to the simulator.
+ * I get new y value for the new point from the spline.
+ * I convert **next_x_vals** and **next_y_vals** back to world coordinate and send it to the simulator.
+ 
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
 
